@@ -1,0 +1,21 @@
+FROM golang:1.11.1-alpine3.8 as build-env
+
+ARG service_name
+ARG volume
+
+# All these steps will be cached
+RUN mkdir /${service_name}
+WORKDIR /${service_name}
+COPY go.mod . # <- COPY go.mod and go.sum files to the workspace
+COPY go.sum .
+
+# Get dependancies - will also be cached if we won't change mod/sum
+RUN go mod download
+# COPY the source code as the last step
+COPY ./go .
+
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o /go/bin/${service_name}
+FROM scratch # <- Second step to build minimal image
+COPY --from=build-env /go/bin/${service_name} /go/bin/${service_name}
+ENTRYPOINT ["/go/bin/${service_name}"]
